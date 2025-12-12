@@ -13,20 +13,34 @@ A full-stack dropshipping e-commerce starter built with Next.js 14 (App Router),
 
 ## Environment Variables
 
-Copy `.env.example` to `.env.local` and fill in values:
+Copy `.env.example` to `.env.local` and fill in values. Missing values will disable the related feature at runtime instead of breaking the build:
 
-- App: `NEXT_PUBLIC_APP_URL`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `AUTH_SECRET`, `CRON_SECRET`
-- Database: `DATABASE_URL`, `DIRECT_URL`
-- Auth providers: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
-- Stripe: `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL`
-- Cloudflare Turnstile: `TURNSTILE_SITE_KEY`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `TURNSTILE_BYPASS`
-- Cloudflare R2: `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_PUBLIC_BASE_URL`
+- App/base URL: `NEXT_PUBLIC_APP_URL` (defaults to `https://$VERCEL_URL` on Vercel or `http://localhost:3000` locally)
+- Database (required for auth/orders): `DATABASE_URL`, `DIRECT_URL`
+- Auth providers (optional): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+- Stripe Checkout (optional, required to sell): `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL`
+- Cloudflare Turnstile (optional): `TURNSTILE_SITE_KEY`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `TURNSTILE_BYPASS`
+- Cloudflare R2 uploads (optional): `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_PUBLIC_BASE_URL`
 - Admin uploads: `ADMIN_ACCESS_TOKEN` (optional override header)
 - Email (optional): `RESEND_API_KEY`
 - Shipping (optional): `SHIPPO_API_TOKEN`
 - Rate limiting (optional): `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`
+- Cron (required for scheduled jobs): `CRON_SECRET`
 
-Validation lives in `src/lib/env.ts` and will throw on missing/invalid values at runtime.
+Runtime env handling is lazy in `src/lib/env/runtime.ts`: builds succeed without secrets, and endpoints respond with `503` and a list of required variables until configured.
+
+### Deploy without secrets (feature flags off)
+- The app will build and deploy even if Stripe/R2/Turnstile/DB credentials are missing.
+- Impact:
+  - Checkout + webhooks return `503` until Stripe keys are set.
+  - Uploads return `503` until R2 is configured.
+  - Auth and checkout Turnstile checks are bypassed (with a warning) until keys are provided.
+  - Database-backed routes return `503` until `DATABASE_URL` is set.
+
+### Vercel environment variables
+- Set variables in **Project Settings → Environment Variables** (Production/Preview/Development).
+- `NEXT_PUBLIC_APP_URL` can be omitted; `VERCEL_URL` will be used automatically.
+- Redeploy after any env var change so Next.js picks up the new values.
 
 ## Installation
 

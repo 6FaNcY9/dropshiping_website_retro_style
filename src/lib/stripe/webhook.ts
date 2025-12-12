@@ -1,7 +1,7 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 import Stripe from "stripe";
-import { env } from "../env";
-import { stripe } from "./client";
+import { type Env } from "../env";
+import { getStripe } from "./client";
 
 export interface IdempotencyStore {
   hasProcessed(eventId: string): Promise<boolean>;
@@ -58,14 +58,17 @@ export function parseCheckoutItemsFromMetadata(
 export async function constructStripeEvent(
   rawBody: string | Buffer,
   signature: string | null,
+  env: Env,
 ) {
   if (!signature) {
     throw new Error("Missing Stripe signature");
   }
 
+  const stripe = getStripe(env);
+
   return stripe.webhooks.constructEvent(
     rawBody,
     signature,
-    env.STRIPE_WEBHOOK_SECRET,
+    env.STRIPE_WEBHOOK_SECRET ?? "",
   );
 }

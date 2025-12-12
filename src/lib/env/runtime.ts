@@ -1,0 +1,111 @@
+import { z } from "zod";
+
+const envSchema = z.object({
+  DATABASE_URL: z.string().url().optional(),
+  DIRECT_URL: z.string().url().optional(),
+  NEXTAUTH_URL: z.string().url().optional(),
+  NEXTAUTH_SECRET: z.string().optional(),
+  AUTH_SECRET: z.string().optional(),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  STRIPE_SECRET_KEY: z.string().optional(),
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_SUCCESS_URL: z.string().optional(),
+  STRIPE_CANCEL_URL: z.string().optional(),
+  RESEND_API_KEY: z.string().optional(),
+  R2_ENDPOINT: z.string().optional(),
+  R2_BUCKET: z.string().optional(),
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_PUBLIC_BASE_URL: z.string().optional(),
+  SHIPPO_API_TOKEN: z.string().optional(),
+  UPSTASH_REDIS_REST_URL: z.string().optional(),
+  UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
+  NEXT_PUBLIC_APP_URL: z.string().optional(),
+  CRON_SECRET: z.string().optional(),
+  TURNSTILE_SITE_KEY: z.string().optional(),
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional(),
+  TURNSTILE_SECRET_KEY: z.string().optional(),
+  TURNSTILE_BYPASS: z
+    .string()
+    .optional()
+    .transform((val) => val === "true"),
+  ADMIN_ACCESS_TOKEN: z.string().optional(),
+  SKIP_ENV_VALIDATION: z.string().optional(),
+  VERCEL_URL: z.string().optional(),
+});
+
+export type Env = z.infer<typeof envSchema> & {
+  HAS_DB: boolean;
+  HAS_STRIPE: boolean;
+  HAS_R2: boolean;
+  HAS_TURNSTILE: boolean;
+  APP_URL: string;
+};
+
+let cachedEnv: Env | null = null;
+
+function normalizeEnv(): Record<string, string | undefined> {
+  return Object.entries(process.env).reduce<Record<string, string | undefined>>(
+    (acc, [key, value]) => {
+      acc[key] = value?.trim() ? value : undefined;
+      return acc;
+    },
+    {},
+  );
+}
+
+function computeAppUrl(env: z.infer<typeof envSchema>) {
+  if (env.NEXT_PUBLIC_APP_URL) return env.NEXT_PUBLIC_APP_URL;
+  if (env.VERCEL_URL) return `https://${env.VERCEL_URL}`;
+  return "http://localhost:3000";
+}
+
+export function getEnv(): Env {
+  if (cachedEnv) return cachedEnv;
+
+  const parsed = envSchema.parse(normalizeEnv());
+  const APP_URL = computeAppUrl(parsed);
+
+  cachedEnv = {
+    ...parsed,
+    APP_URL,
+    HAS_DB: Boolean(parsed.DATABASE_URL),
+    HAS_STRIPE: Boolean(
+      parsed.STRIPE_SECRET_KEY &&
+      parsed.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY &&
+      parsed.STRIPE_WEBHOOK_SECRET &&
+      parsed.STRIPE_SUCCESS_URL &&
+      parsed.STRIPE_CANCEL_URL,
+    ),
+    HAS_R2: Boolean(
+      parsed.R2_ENDPOINT &&
+      parsed.R2_BUCKET &&
+      parsed.R2_ACCESS_KEY_ID &&
+      parsed.R2_SECRET_ACCESS_KEY &&
+      parsed.R2_PUBLIC_BASE_URL,
+    ),
+    HAS_TURNSTILE: Boolean(
+      parsed.TURNSTILE_SECRET_KEY && parsed.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
+    ),
+  } satisfies Env;
+
+  return cachedEnv;
+}
+
+export function requireEnv(keys: Array<keyof Env | string>) {
+  const env = getEnv();
+  const missing = keys.filter((key) => {
+    const value = env[key as keyof Env];
+    return value === undefined || value === "";
+  });
+
+  if (missing.length) {
+    throw new Error(
+      `Missing required environment variables: ${missing.join(", ")}. Update your deployment settings and redeploy.`,
+    );
+  }
+
+  return env;
+}
