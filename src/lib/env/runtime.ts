@@ -1,40 +1,42 @@
 import { z } from "zod";
 
-const envSchema = z.object({
-  DATABASE_URL: z.string().url().optional(),
-  DIRECT_URL: z.string().url().optional(),
-  NEXTAUTH_URL: z.string().url().optional(),
-  NEXTAUTH_SECRET: z.string().optional(),
-  AUTH_SECRET: z.string().optional(),
-  GOOGLE_CLIENT_ID: z.string().optional(),
-  GOOGLE_CLIENT_SECRET: z.string().optional(),
-  STRIPE_SECRET_KEY: z.string().optional(),
-  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().optional(),
-  STRIPE_WEBHOOK_SECRET: z.string().optional(),
-  STRIPE_SUCCESS_URL: z.string().optional(),
-  STRIPE_CANCEL_URL: z.string().optional(),
-  RESEND_API_KEY: z.string().optional(),
-  R2_ENDPOINT: z.string().optional(),
-  R2_BUCKET: z.string().optional(),
-  R2_ACCESS_KEY_ID: z.string().optional(),
-  R2_SECRET_ACCESS_KEY: z.string().optional(),
-  R2_PUBLIC_BASE_URL: z.string().optional(),
-  SHIPPO_API_TOKEN: z.string().optional(),
-  UPSTASH_REDIS_REST_URL: z.string().optional(),
-  UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
-  NEXT_PUBLIC_APP_URL: z.string().optional(),
-  CRON_SECRET: z.string().optional(),
-  TURNSTILE_SITE_KEY: z.string().optional(),
-  NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional(),
-  TURNSTILE_SECRET_KEY: z.string().optional(),
-  TURNSTILE_BYPASS: z
-    .string()
-    .optional()
-    .transform((val) => val === "true"),
-  ADMIN_ACCESS_TOKEN: z.string().optional(),
-  SKIP_ENV_VALIDATION: z.string().optional(),
-  VERCEL_URL: z.string().optional(),
-});
+const envSchema = z
+  .object({
+    DATABASE_URL: z.string().optional(),
+    DIRECT_URL: z.string().optional(),
+    NEXTAUTH_URL: z.string().optional(),
+    NEXTAUTH_SECRET: z.string().optional(),
+    AUTH_SECRET: z.string().optional(),
+    GOOGLE_CLIENT_ID: z.string().optional(),
+    GOOGLE_CLIENT_SECRET: z.string().optional(),
+    STRIPE_SECRET_KEY: z.string().optional(),
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().optional(),
+    STRIPE_WEBHOOK_SECRET: z.string().optional(),
+    STRIPE_SUCCESS_URL: z.string().optional(),
+    STRIPE_CANCEL_URL: z.string().optional(),
+    RESEND_API_KEY: z.string().optional(),
+    R2_ENDPOINT: z.string().optional(),
+    R2_BUCKET: z.string().optional(),
+    R2_ACCESS_KEY_ID: z.string().optional(),
+    R2_SECRET_ACCESS_KEY: z.string().optional(),
+    R2_PUBLIC_BASE_URL: z.string().optional(),
+    SHIPPO_API_TOKEN: z.string().optional(),
+    UPSTASH_REDIS_REST_URL: z.string().optional(),
+    UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
+    NEXT_PUBLIC_APP_URL: z.string().optional(),
+    CRON_SECRET: z.string().optional(),
+    TURNSTILE_SITE_KEY: z.string().optional(),
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional(),
+    TURNSTILE_SECRET_KEY: z.string().optional(),
+    TURNSTILE_BYPASS: z
+      .string()
+      .optional()
+      .transform((val) => val === "true"),
+    ADMIN_ACCESS_TOKEN: z.string().optional(),
+    SKIP_ENV_VALIDATION: z.string().optional(),
+    VERCEL_URL: z.string().optional(),
+  })
+  .passthrough();
 
 type EnvOutput = z.infer<typeof envSchema>;
 
