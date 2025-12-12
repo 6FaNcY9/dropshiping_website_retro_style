@@ -1,9 +1,19 @@
 import { z } from "zod";
 
+const allowRelaxedValidation =
+  process.env.NODE_ENV === "test" ||
+  process.env.SKIP_ENV_VALIDATION === "true" ||
+  process.env.VERCEL_ENV === "preview";
+
+const urlString = allowRelaxedValidation ? z.string().min(1) : z.string().url();
+const optionalUrlString = allowRelaxedValidation
+  ? z.string().min(1).optional()
+  : z.string().url().optional();
+
 const envSchema = z.object({
-  DATABASE_URL: z.string().url(),
-  DIRECT_URL: z.string().url().optional(),
-  NEXTAUTH_URL: z.string().url().optional(),
+  DATABASE_URL: urlString,
+  DIRECT_URL: optionalUrlString,
+  NEXTAUTH_URL: optionalUrlString,
   NEXTAUTH_SECRET: z.string().optional(),
   AUTH_SECRET: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
@@ -13,18 +23,18 @@ const envSchema = z.object({
     .string()
     .min(1, "Stripe publishable key is required"),
   STRIPE_WEBHOOK_SECRET: z.string().min(1, "Stripe webhook secret is required"),
-  STRIPE_SUCCESS_URL: z.string().url(),
-  STRIPE_CANCEL_URL: z.string().url(),
+  STRIPE_SUCCESS_URL: urlString,
+  STRIPE_CANCEL_URL: urlString,
   RESEND_API_KEY: z.string().optional(),
-  R2_ENDPOINT: z.string().url(),
+  R2_ENDPOINT: urlString,
   R2_BUCKET: z.string().min(1),
   R2_ACCESS_KEY_ID: z.string().min(1),
   R2_SECRET_ACCESS_KEY: z.string().min(1),
-  R2_PUBLIC_BASE_URL: z.string().url(),
+  R2_PUBLIC_BASE_URL: urlString,
   SHIPPO_API_TOKEN: z.string().optional(),
   UPSTASH_REDIS_REST_URL: z.string().optional(),
   UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
-  NEXT_PUBLIC_APP_URL: z.string().url(),
+  NEXT_PUBLIC_APP_URL: urlString,
   CRON_SECRET: z.string().min(1, "CRON_SECRET is required"),
   TURNSTILE_SITE_KEY: z.string().min(1),
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().min(1),
@@ -58,7 +68,9 @@ const testDefaults = {
 };
 
 const shouldUseDefaults =
-  process.env.NODE_ENV === "test" || process.env.SKIP_ENV_VALIDATION === "true";
+  process.env.NODE_ENV === "test" ||
+  process.env.SKIP_ENV_VALIDATION === "true" ||
+  process.env.VERCEL_ENV === "preview";
 
 const parsed = envSchema.safeParse({
   ...(shouldUseDefaults ? testDefaults : {}),
@@ -70,7 +82,8 @@ let env: z.infer<typeof envSchema>;
 if (!parsed.success) {
   if (shouldUseDefaults) {
     console.warn(
-      "⚠️  Skipping strict env validation and falling back to local defaults."
+      "⚠️  Skipping strict env validation and falling back to local defaults. " +
+        "Set SKIP_ENV_VALIDATION=true to silence this warning once your deployment environment is fully configured.",
     );
     env = envSchema.parse({
       ...testDefaults,
@@ -78,6 +91,9 @@ if (!parsed.success) {
     });
   } else {
     console.error("❌ Invalid environment variables:", parsed.error.format());
+    console.error(
+      "Set SKIP_ENV_VALIDATION=true if you want to build with placeholder defaults while you finish configuring secrets.",
+    );
     throw new Error("Invalid environment variables");
   }
 } else {
