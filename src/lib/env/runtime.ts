@@ -36,7 +36,9 @@ const envSchema = z.object({
   VERCEL_URL: z.string().optional(),
 });
 
-export type Env = z.infer<typeof envSchema> & {
+type EnvOutput = z.infer<typeof envSchema>;
+
+export type Env = EnvOutput & {
   HAS_DB: boolean;
   HAS_STRIPE: boolean;
   HAS_R2: boolean;
@@ -45,6 +47,7 @@ export type Env = z.infer<typeof envSchema> & {
 };
 
 let cachedEnv: Env | null = null;
+let validationWarningLogged = false;
 
 function normalizeEnv(): Record<string, string | undefined> {
   return Object.entries(process.env).reduce<Record<string, string | undefined>>(
@@ -56,7 +59,7 @@ function normalizeEnv(): Record<string, string | undefined> {
   );
 }
 
-function computeAppUrl(env: z.infer<typeof envSchema>) {
+function computeAppUrl(env: EnvOutput) {
   if (env.NEXT_PUBLIC_APP_URL) return env.NEXT_PUBLIC_APP_URL;
   if (env.VERCEL_URL) return `https://${env.VERCEL_URL}`;
   return "http://localhost:3000";
@@ -65,29 +68,47 @@ function computeAppUrl(env: z.infer<typeof envSchema>) {
 export function getEnv(): Env {
   if (cachedEnv) return cachedEnv;
 
-  const parsed = envSchema.parse(normalizeEnv());
-  const APP_URL = computeAppUrl(parsed);
+  const normalized = normalizeEnv();
+  const parsed = envSchema.safeParse(normalized);
+
+  if (!parsed.success && normalized.SKIP_ENV_VALIDATION !== "true") {
+    if (!validationWarningLogged) {
+      console.warn(
+        "Environment validation failed; continuing with best-effort values. Missing secrets will disable related features until configured.",
+        parsed.error.format(),
+      );
+      validationWarningLogged = true;
+    }
+  }
+
+  const baseEnv: EnvOutput = parsed.success
+    ? parsed.data
+    : {
+        ...normalized,
+        TURNSTILE_BYPASS: normalized.TURNSTILE_BYPASS === "true",
+      };
+  const APP_URL = computeAppUrl(baseEnv);
 
   cachedEnv = {
-    ...parsed,
+    ...baseEnv,
     APP_URL,
-    HAS_DB: Boolean(parsed.DATABASE_URL),
+    HAS_DB: Boolean(baseEnv.DATABASE_URL),
     HAS_STRIPE: Boolean(
-      parsed.STRIPE_SECRET_KEY &&
-      parsed.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY &&
-      parsed.STRIPE_WEBHOOK_SECRET &&
-      parsed.STRIPE_SUCCESS_URL &&
-      parsed.STRIPE_CANCEL_URL,
+      baseEnv.STRIPE_SECRET_KEY &&
+      baseEnv.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY &&
+      baseEnv.STRIPE_WEBHOOK_SECRET &&
+      baseEnv.STRIPE_SUCCESS_URL &&
+      baseEnv.STRIPE_CANCEL_URL,
     ),
     HAS_R2: Boolean(
-      parsed.R2_ENDPOINT &&
-      parsed.R2_BUCKET &&
-      parsed.R2_ACCESS_KEY_ID &&
-      parsed.R2_SECRET_ACCESS_KEY &&
-      parsed.R2_PUBLIC_BASE_URL,
+      baseEnv.R2_ENDPOINT &&
+      baseEnv.R2_BUCKET &&
+      baseEnv.R2_ACCESS_KEY_ID &&
+      baseEnv.R2_SECRET_ACCESS_KEY &&
+      baseEnv.R2_PUBLIC_BASE_URL,
     ),
     HAS_TURNSTILE: Boolean(
-      parsed.TURNSTILE_SECRET_KEY && parsed.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
+      baseEnv.TURNSTILE_SECRET_KEY && baseEnv.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
     ),
   } satisfies Env;
 
