@@ -1,0 +1,34 @@
+import { env } from "../env";
+
+type TurnstileResponse = {
+  success: boolean;
+  "error-codes"?: string[];
+};
+
+export async function verifyTurnstile(
+  token: string | undefined,
+  remoteip?: string | null,
+) {
+  if (env.TURNSTILE_BYPASS) return true;
+  if (!token) return false;
+
+  const body = new URLSearchParams();
+  body.append("secret", env.TURNSTILE_SECRET_KEY);
+  body.append("response", token);
+  if (remoteip) {
+    body.append("remoteip", remoteip);
+  }
+
+  const res = await fetch(
+    "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+    {
+      method: "POST",
+      body,
+    },
+  );
+
+  if (!res.ok) return false;
+
+  const data = (await res.json()) as TurnstileResponse;
+  return data.success;
+}
