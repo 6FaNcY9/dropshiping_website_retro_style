@@ -57,14 +57,31 @@ const testDefaults = {
   TURNSTILE_SECRET_KEY: "test-secret-key",
 };
 
+const shouldUseDefaults =
+  process.env.NODE_ENV === "test" || process.env.SKIP_ENV_VALIDATION === "true";
+
 const parsed = envSchema.safeParse({
-  ...(process.env.NODE_ENV === "test" ? testDefaults : {}),
+  ...(shouldUseDefaults ? testDefaults : {}),
   ...process.env,
 });
 
+let env: z.infer<typeof envSchema>;
+
 if (!parsed.success) {
-  console.error("❌ Invalid environment variables:", parsed.error.format());
-  throw new Error("Invalid environment variables");
+  if (shouldUseDefaults) {
+    console.warn(
+      "⚠️  Skipping strict env validation and falling back to local defaults."
+    );
+    env = envSchema.parse({
+      ...testDefaults,
+      ...process.env,
+    });
+  } else {
+    console.error("❌ Invalid environment variables:", parsed.error.format());
+    throw new Error("Invalid environment variables");
+  }
+} else {
+  env = parsed.data;
 }
 
-export const env = parsed.data;
+export { env };
