@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+import { getEnv } from "@/lib/env";
+import { getPrisma } from "@/lib/db";
 import { verifyTurnstile } from "@/lib/security/turnstile";
-import { stripe } from "@/lib/stripe/client";
+import { getStripe } from "@/lib/stripe/client";
 import { checkoutItemMetadataKey } from "@/lib/stripe/webhook";
-import { env } from "@/lib/env";
 
 const bodySchema = z.object({
   items: z.array(
@@ -16,6 +16,23 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
+  const env = getEnv();
+  if (!env.HAS_STRIPE) {
+    return NextResponse.json(
+      {
+        error: "Stripe not configured",
+        required: [
+          "STRIPE_SECRET_KEY",
+          "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
+          "STRIPE_WEBHOOK_SECRET",
+          "STRIPE_SUCCESS_URL",
+          "STRIPE_CANCEL_URL",
+        ],
+      },
+      { status: 503 },
+    );
+  }
+
   const json = await request.json().catch(() => null);
   const parseResult = bodySchema.safeParse(json);
 
@@ -33,6 +50,17 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "Turnstile verification failed" },
       { status: 400 },
+    );
+  }
+
+  let prisma;
+  try {
+    prisma = getPrisma();
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json(
+      { error: "Database not configured", required: ["DATABASE_URL"] },
+      { status: 503 },
     );
   }
 
@@ -65,11 +93,12 @@ export async function POST(request: Request) {
     } satisfies Stripe.Checkout.SessionCreateParams.LineItem;
   });
 
+  const stripe = getStripe(env);
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
     line_items: lineItems,
-    success_url: env.STRIPE_SUCCESS_URL,
-    cancel_url: env.STRIPE_CANCEL_URL,
+    success_url: env.STRIPE_SUCCESS_URL ?? env.APP_URL,
+    cancel_url: env.STRIPE_CANCEL_URL ?? env.APP_URL,
     metadata: {
       [checkoutItemMetadataKey]: JSON.stringify(items),
     },

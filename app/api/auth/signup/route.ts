@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { createSession } from "@/lib/auth/session";
+import { getPrisma } from "@/lib/db";
 import { verifyTurnstile } from "@/lib/security/turnstile";
 
 export async function POST(request: Request) {
@@ -33,6 +33,20 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "Turnstile verification failed" },
       { status: 400 },
+    );
+  }
+
+  let prisma;
+  try {
+    prisma = getPrisma();
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json(
+      {
+        error: "Database not configured",
+        required: ["DATABASE_URL"],
+      },
+      { status: 503 },
     );
   }
 

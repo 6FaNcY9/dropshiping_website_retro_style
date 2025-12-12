@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createPresignedUpload } from "@/lib/storage/r2";
 import { getCurrentUser } from "@/lib/auth/session";
-import { env } from "@/lib/env";
+import { getEnv } from "@/lib/env";
 
 const bodySchema = z.object({
   filename: z.string().min(1),
@@ -10,20 +10,33 @@ const bodySchema = z.object({
 });
 
 function isAuthorizedAdmin(
-  userRole?: string | null,
-  tokenHeader?: string | null,
+  userRole: string | null | undefined,
+  tokenHeader: string | null,
+  adminToken: string | undefined,
 ) {
   if (userRole === "ADMIN") return true;
-  if (
-    env.ADMIN_ACCESS_TOKEN &&
-    tokenHeader &&
-    tokenHeader === env.ADMIN_ACCESS_TOKEN
-  )
-    return true;
+  if (adminToken && tokenHeader && tokenHeader === adminToken) return true;
   return false;
 }
 
 export async function POST(request: Request) {
+  const env = getEnv();
+  if (!env.HAS_R2) {
+    return NextResponse.json(
+      {
+        error: "R2 not configured",
+        required: [
+          "R2_ENDPOINT",
+          "R2_BUCKET",
+          "R2_ACCESS_KEY_ID",
+          "R2_SECRET_ACCESS_KEY",
+          "R2_PUBLIC_BASE_URL",
+        ],
+      },
+      { status: 503 },
+    );
+  }
+
   const user = await getCurrentUser();
   const tokenHeader = request.headers.get("x-admin-token");
 
@@ -33,7 +46,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  if (!isAuthorizedAdmin(user?.role, tokenHeader)) {
+  if (!isAuthorizedAdmin(user?.role, tokenHeader, env.ADMIN_ACCESS_TOKEN)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

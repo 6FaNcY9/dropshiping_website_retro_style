@@ -1,19 +1,48 @@
 import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { prisma } from "@/lib/prisma";
+import { getEnv } from "@/lib/env";
+import { getPrisma } from "@/lib/db";
 import {
   constructStripeEvent,
   parseCheckoutItemsFromMetadata,
 } from "@/lib/stripe/webhook";
 
 export async function POST(request: Request) {
+  const env = getEnv();
+  if (!env.HAS_STRIPE) {
+    return NextResponse.json(
+      {
+        error: "Stripe not configured",
+        required: [
+          "STRIPE_SECRET_KEY",
+          "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
+          "STRIPE_WEBHOOK_SECRET",
+          "STRIPE_SUCCESS_URL",
+          "STRIPE_CANCEL_URL",
+        ],
+      },
+      { status: 503 },
+    );
+  }
+
+  let prisma;
+  try {
+    prisma = getPrisma();
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json(
+      { error: "Database not configured", required: ["DATABASE_URL"] },
+      { status: 503 },
+    );
+  }
+
   const signature = request.headers.get("stripe-signature");
   const rawBody = await request.text();
 
   let event: Stripe.Event;
   try {
-    event = await constructStripeEvent(rawBody, signature);
+    event = await constructStripeEvent(rawBody, signature, env);
   } catch (error) {
     console.error("Stripe signature verification failed", error);
     return new NextResponse("Signature verification failed", { status: 400 });
