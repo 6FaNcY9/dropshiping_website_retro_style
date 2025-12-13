@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import Stripe from "stripe";
 import { z } from "zod";
-import { getEnv } from "@/lib/env";
-import { getPrisma } from "@/lib/db";
+import { requireEnv } from "@/lib/env";
+import { resolvePrisma } from "@/lib/db";
 import { verifyTurnstile } from "@/lib/security/turnstile";
 import { getStripe } from "@/lib/stripe/client";
 import { checkoutItemMetadataKey } from "@/lib/stripe/webhook";
@@ -16,22 +17,32 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const env = getEnv();
-  if (!env.HAS_STRIPE) {
+  const stripeEnvCheck = requireEnv([
+    "STRIPE_SECRET_KEY",
+    "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
+    "STRIPE_WEBHOOK_SECRET",
+    "STRIPE_SUCCESS_URL",
+    "STRIPE_CANCEL_URL",
+  ]);
+  if (!stripeEnvCheck.ok) {
     return NextResponse.json(
       {
         error: "Stripe not configured",
-        required: [
-          "STRIPE_SECRET_KEY",
-          "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
-          "STRIPE_WEBHOOK_SECRET",
-          "STRIPE_SUCCESS_URL",
-          "STRIPE_CANCEL_URL",
-        ],
+        required: stripeEnvCheck.missing,
       },
       { status: 503 },
     );
   }
+
+  const dbEnvCheck = requireEnv(["DATABASE_URL"]);
+  if (!dbEnvCheck.ok) {
+    return NextResponse.json(
+      { error: "Database not configured", required: dbEnvCheck.missing },
+      { status: 503 },
+    );
+  }
+
+  const env = stripeEnvCheck.env;
 
   const json = await request.json().catch(() => null);
   const parseResult = bodySchema.safeParse(json);
@@ -53,16 +64,14 @@ export async function POST(request: Request) {
     );
   }
 
-  let prisma;
-  try {
-    prisma = getPrisma();
-  } catch (error) {
-    console.error(error);
+  const prismaResult = resolvePrisma();
+  if (!prismaResult.ok) {
     return NextResponse.json(
-      { error: "Database not configured", required: ["DATABASE_URL"] },
+      { error: "Database not configured", required: prismaResult.missing },
       { status: 503 },
     );
   }
+  const prisma = prismaResult.prisma;
 
   const productIds = items.map((item) => item.productId);
   const products = await prisma.product.findMany({
@@ -75,6 +84,34 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
+
+  const currency = "usd";
+  const total = new Prisma.Decimal(
+    items.reduce((sum, item) => {
+      const product = products.find((p) => p.id === item.productId)!;
+      return sum + Number(product.price) * item.quantity;
+    }, 0),
+  );
+
+  const order = await prisma.order.create({
+    data: {
+      status: "PENDING",
+      currency,
+      total,
+      items: {
+        create: items.map((item) => {
+          const product = products.find((p) => p.id === item.productId)!;
+          return {
+            productId: product.id,
+            productName: product.name,
+            imageUrl: product.imageUrl,
+            unitPrice: product.price,
+            quantity: item.quantity,
+          };
+        }),
+      },
+    },
+  });
 
   const lineItems = items.map((item) => {
     const product = products.find((p) => p.id === item.productId)!;
@@ -90,20 +127,43 @@ export async function POST(request: Request) {
         },
         unit_amount: unitAmount,
       },
-    } satisfies Stripe.Checkout.SessionCreateParams.LineItem;
-  });
+      } satisfies Stripe.Checkout.SessionCreateParams.LineItem;
+    });
 
   const stripe = getStripe(env);
-  const session = await stripe.checkout.sessions.create({
-    mode: "payment",
-    line_items: lineItems,
-    success_url: env.STRIPE_SUCCESS_URL ?? env.APP_URL,
-    cancel_url: env.STRIPE_CANCEL_URL ?? env.APP_URL,
-    metadata: {
-      [checkoutItemMetadataKey]: JSON.stringify(items),
-    },
-    customer_email: customerEmail,
-  });
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      line_items: lineItems,
+      success_url: env.STRIPE_SUCCESS_URL ?? env.APP_URL,
+      cancel_url: env.STRIPE_CANCEL_URL ?? env.APP_URL,
+      metadata: {
+        orderId: order.id,
+        [checkoutItemMetadataKey]: JSON.stringify(items),
+      },
+      customer_email: customerEmail,
+      payment_intent_data: {
+        metadata: {
+          orderId: order.id,
+        },
+      },
+    });
 
-  return NextResponse.json({ url: session.url, id: session.id });
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { stripeSessionId: session.id },
+    });
+
+    return NextResponse.json({ url: session.url, id: session.id });
+  } catch (error) {
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { status: "FAILED" },
+    });
+    console.error("Failed to create Stripe checkout session", error);
+    return NextResponse.json(
+      { error: "Failed to create checkout session" },
+      { status: 500 },
+    );
+  }
 }

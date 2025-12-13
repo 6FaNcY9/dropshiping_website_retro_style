@@ -23,7 +23,8 @@ export function TurnstileWidget({ onVerify }: Props) {
   const [widgetId, setWidgetId] = useState<string | null>(null);
 
   useEffect(() => {
-    const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+    const siteKey =
+      process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || process.env.TURNSTILE_SITE_KEY;
     if (!siteKey || !containerRef.current) return;
 
     const renderWidget = () => {

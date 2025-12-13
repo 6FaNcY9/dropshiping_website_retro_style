@@ -6,6 +6,7 @@ type TurnstileResponse = {
 };
 
 let warnedTurnstileMissing = false;
+let warnedTurnstileBypass = false;
 
 export async function verifyTurnstile(
   token: string | undefined,
@@ -13,7 +14,15 @@ export async function verifyTurnstile(
 ) {
   const env = getEnv();
 
-  if (env.TURNSTILE_BYPASS) return true;
+  if (env.TURNSTILE_BYPASS) {
+    if (!warnedTurnstileBypass) {
+      console.warn(
+        "TURNSTILE_BYPASS=true detected; verification is skipped. Disable this in production.",
+      );
+      warnedTurnstileBypass = true;
+    }
+    return true;
+  }
   if (!env.HAS_TURNSTILE) {
     if (!warnedTurnstileMissing) {
       console.warn(
@@ -44,4 +53,9 @@ export async function verifyTurnstile(
 
   const data = (await res.json()) as TurnstileResponse;
   return data.success;
+}
+
+export function resetTurnstileWarningState() {
+  warnedTurnstileMissing = false;
+  warnedTurnstileBypass = false;
 }

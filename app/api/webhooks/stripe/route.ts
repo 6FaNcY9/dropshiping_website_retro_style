@@ -1,41 +1,49 @@
 import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { getEnv } from "@/lib/env";
-import { getPrisma } from "@/lib/db";
+import { requireEnv } from "@/lib/env";
+import { resolvePrisma } from "@/lib/db";
 import {
   constructStripeEvent,
-  parseCheckoutItemsFromMetadata,
+  PrismaIdempotencyStore,
 } from "@/lib/stripe/webhook";
 
 export async function POST(request: Request) {
-  const env = getEnv();
-  if (!env.HAS_STRIPE) {
+  const stripeEnvCheck = requireEnv([
+    "STRIPE_SECRET_KEY",
+    "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
+    "STRIPE_WEBHOOK_SECRET",
+    "STRIPE_SUCCESS_URL",
+    "STRIPE_CANCEL_URL",
+  ]);
+  if (!stripeEnvCheck.ok) {
     return NextResponse.json(
       {
         error: "Stripe not configured",
-        required: [
-          "STRIPE_SECRET_KEY",
-          "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
-          "STRIPE_WEBHOOK_SECRET",
-          "STRIPE_SUCCESS_URL",
-          "STRIPE_CANCEL_URL",
-        ],
+        required: stripeEnvCheck.missing,
       },
       { status: 503 },
     );
   }
 
-  let prisma;
-  try {
-    prisma = getPrisma();
-  } catch (error) {
-    console.error(error);
+  const dbEnvCheck = requireEnv(["DATABASE_URL"]);
+  if (!dbEnvCheck.ok) {
     return NextResponse.json(
-      { error: "Database not configured", required: ["DATABASE_URL"] },
+      { error: "Database not configured", required: dbEnvCheck.missing },
       { status: 503 },
     );
   }
+
+  const env = stripeEnvCheck.env;
+
+  const prismaResult = resolvePrisma();
+  if (!prismaResult.ok) {
+    return NextResponse.json(
+      { error: "Database not configured", required: prismaResult.missing },
+      { status: 503 },
+    );
+  }
+  const prisma = prismaResult.prisma;
 
   const signature = request.headers.get("stripe-signature");
   const rawBody = await request.text();
@@ -48,65 +56,56 @@ export async function POST(request: Request) {
     return new NextResponse("Signature verification failed", { status: 400 });
   }
 
-  const existingEvent = await prisma.processedEvent.findUnique({
-    where: { eventId: event.id },
-  });
-  if (existingEvent) {
+  const idempotency = new PrismaIdempotencyStore(prisma);
+  if (await idempotency.hasProcessed(event.id)) {
     return NextResponse.json({ received: true });
   }
 
-  if (event.type === "checkout.session.completed") {
-    const session = event.data.object as Stripe.Checkout.Session;
-    const items = parseCheckoutItemsFromMetadata(session.metadata);
+  try {
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const orderIdFromMetadata = session.metadata?.orderId;
 
-    if (!items.length) {
-      return new NextResponse("Missing checkout metadata", { status: 400 });
-    }
+      const order = orderIdFromMetadata
+        ? await prisma.order.findUnique({ where: { id: orderIdFromMetadata } })
+        : await prisma.order.findUnique({ where: { stripeSessionId: session.id } });
 
-    const products = await prisma.product.findMany({
-      where: { id: { in: items.map((item) => item.productId) } },
-    });
+      if (!order) {
+        return new NextResponse("Order not found for checkout session", {
+          status: 400,
+        });
+      }
 
-    const currency = session.currency ?? "usd";
+      const amountTotal =
+        typeof session.amount_total === "number"
+          ? session.amount_total
+          : Number(order.total) * 100;
+      const amount = new Prisma.Decimal(amountTotal / 100);
+      const currency = session.currency ?? order.currency;
 
-    try {
       await prisma.$transaction(async (tx) => {
-        const order = await tx.order.create({
+        await tx.order.update({
+          where: { id: order.id },
           data: {
-            stripeSessionId: session.id,
             status: "PAID",
             currency,
-            total: new Prisma.Decimal(
-              items.reduce((sum, item) => {
-                const product = products.find((p) => p.id === item.productId);
-                const price = product ? Number(product.price) : 0;
-                return sum + price * item.quantity;
-              }, 0),
-            ),
-            items: {
-              create: items.map((item) => {
-                const product = products.find((p) => p.id === item.productId);
-                const unitPrice = product
-                  ? product.price
-                  : new Prisma.Decimal(0);
-                return {
-                  productId: item.productId,
-                  productName: product?.name ?? "Unknown product",
-                  imageUrl: product?.imageUrl,
-                  unitPrice,
-                  quantity: item.quantity,
-                };
-              }),
-            },
-            userId:
-              typeof session.client_reference_id === "string"
-                ? session.client_reference_id
-                : null,
+            total: amount,
+            stripeSessionId: order.stripeSessionId ?? session.id,
           },
         });
 
-        await tx.payment.create({
-          data: {
+        await tx.payment.upsert({
+          where: { orderId: order.id },
+          update: {
+            status: "SUCCEEDED",
+            providerPaymentId:
+              typeof session.payment_intent === "string"
+                ? session.payment_intent
+                : null,
+            amount,
+            currency,
+          },
+          create: {
             orderId: order.id,
             status: "SUCCEEDED",
             provider: "stripe",
@@ -114,7 +113,7 @@ export async function POST(request: Request) {
               typeof session.payment_intent === "string"
                 ? session.payment_intent
                 : null,
-            amount: order.total,
+            amount,
             currency,
           },
         });
@@ -123,30 +122,97 @@ export async function POST(request: Request) {
           data: { eventId: event.id, provider: "stripe" },
         });
       });
-    } catch (error) {
-      console.error("Failed to persist checkout.session.completed", error);
-      return new NextResponse("Failed to persist event", { status: 500 });
     }
-  }
 
-  if (event.type === "payment_intent.payment_failed") {
-    const intent = event.data.object as Stripe.PaymentIntent;
-    const order = await prisma.order.findFirst({
-      where: { stripeSessionId: intent.metadata?.checkout_session_id },
-    });
-    if (order) {
-      await prisma.payment.updateMany({
-        where: { orderId: order.id },
-        data: { status: "FAILED" },
-      });
-      await prisma.order.update({
-        where: { id: order.id },
-        data: { status: "FAILED" },
+    if (event.type === "payment_intent.succeeded") {
+      const intent = event.data.object as Stripe.PaymentIntent;
+      const orderIdFromMetadata = intent.metadata?.orderId;
+      const checkoutSessionId = intent.metadata?.checkout_session_id;
+
+      let order = orderIdFromMetadata
+        ? await prisma.order.findUnique({ where: { id: orderIdFromMetadata } })
+        : null;
+      if (!order && checkoutSessionId) {
+        order = await prisma.order.findUnique({
+          where: { stripeSessionId: checkoutSessionId },
+        });
+      }
+
+      if (!order) {
+        return new NextResponse("Order not found for payment intent", {
+          status: 400,
+        });
+      }
+
+      const amountCents =
+        typeof intent.amount_received === "number"
+          ? intent.amount_received
+          : typeof intent.amount === "number"
+            ? intent.amount
+            : Number(order.total) * 100;
+      const amount = new Prisma.Decimal(amountCents / 100);
+      const currency = intent.currency ?? order.currency;
+
+      await prisma.$transaction(async (tx) => {
+        await tx.order.update({
+          where: { id: order!.id },
+          data: {
+            status: "PAID",
+            currency,
+            total: amount,
+            stripeSessionId: order!.stripeSessionId ?? checkoutSessionId,
+          },
+        });
+
+        await tx.payment.upsert({
+          where: { orderId: order!.id },
+          update: {
+            status: "SUCCEEDED",
+            providerPaymentId: intent.id,
+            amount,
+            currency,
+          },
+          create: {
+            orderId: order!.id,
+            status: "SUCCEEDED",
+            provider: "stripe",
+            providerPaymentId: intent.id,
+            amount,
+            currency,
+          },
+        });
+
+        await tx.processedEvent.create({
+          data: { eventId: event.id, provider: "stripe" },
+        });
       });
     }
-    await prisma.processedEvent.create({
-      data: { eventId: event.id, provider: "stripe" },
-    });
+
+    if (event.type === "payment_intent.payment_failed") {
+      const intent = event.data.object as Stripe.PaymentIntent;
+      const order = await prisma.order.findFirst({
+        where: { stripeSessionId: intent.metadata?.checkout_session_id },
+      });
+      if (order) {
+        await prisma.$transaction(async (tx) => {
+          await tx.payment.updateMany({
+            where: { orderId: order.id },
+            data: { status: "FAILED" },
+          });
+          await tx.order.update({
+            where: { id: order.id },
+            data: { status: "FAILED" },
+          });
+
+          await tx.processedEvent.create({
+            data: { eventId: event.id, provider: "stripe" },
+          });
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Failed to handle Stripe webhook", error);
+    return new NextResponse("Failed to process event", { status: 500 });
   }
 
   return NextResponse.json({ received: true });

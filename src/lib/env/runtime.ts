@@ -124,11 +124,14 @@ export function requireEnv(keys: Array<keyof Env | string>) {
     return value === undefined || value === "";
   });
 
-  if (missing.length) {
-    throw new Error(
-      `Missing required environment variables: ${missing.join(", ")}. Update your deployment settings and redeploy.`,
-    );
-  }
+  return {
+    ok: missing.length === 0,
+    missing,
+    env,
+  } as const;
+}
 
-  return env;
+export function clearEnvCache() {
+  cachedEnv = null;
+  validationWarningLogged = false;
 }

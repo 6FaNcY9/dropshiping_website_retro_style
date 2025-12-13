@@ -83,6 +83,8 @@ created through `/api/checkout/create` with server-calculated prices from Prisma
 4. Use the admin upload page at `/admin/uploads` (admin user only) to request a presigned URL and upload directly from the
    browser. You can also call `/api/uploads/presign` programmatically with an `x-admin-token` header matching
    `ADMIN_ACCESS_TOKEN`.
+5. Allow your app origin (e.g., `http://localhost:3000` and your production domain) in the R2 CORS configuration so the
+   browser can send `PUT`/`GET` requests to the presigned URLs.
 
 ## Cloudflare Turnstile
 

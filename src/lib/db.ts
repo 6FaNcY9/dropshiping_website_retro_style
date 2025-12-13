@@ -1,5 +1,13 @@
 import { PrismaClient } from "@prisma/client";
-import { getEnv } from "./env";
+import { requireEnv } from "./env";
+
+export class MissingEnvError extends Error {
+  constructor(public missing: string[]) {
+    super(
+      `Missing required environment variables: ${missing.join(", ")}. Update your deployment settings and redeploy.`,
+    );
+  }
+}
 
 type GlobalWithPrisma = typeof globalThis & {
   _prisma?: PrismaClient;
@@ -7,13 +15,14 @@ type GlobalWithPrisma = typeof globalThis & {
 
 const globalWithPrisma = globalThis as GlobalWithPrisma;
 
-export function getPrisma() {
-  const env = getEnv();
+type PrismaResolution =
+  | { ok: true; prisma: PrismaClient }
+  | { ok: false; missing: string[] };
 
-  if (!env.DATABASE_URL) {
-    throw new Error(
-      "Database not configured. Set DATABASE_URL in your environment to enable data access.",
-    );
+export function resolvePrisma(): PrismaResolution {
+  const envCheck = requireEnv(["DATABASE_URL"]);
+  if (!envCheck.ok) {
+    return { ok: false, missing: envCheck.missing };
   }
 
   if (!globalWithPrisma._prisma) {
@@ -22,8 +31,22 @@ export function getPrisma() {
         process.env.NODE_ENV === "development"
           ? ["query", "error", "warn"]
           : ["error"],
+      datasources: {
+        db: {
+          url: envCheck.env.DATABASE_URL,
+        },
+      },
     });
   }
 
-  return globalWithPrisma._prisma;
+  return { ok: true, prisma: globalWithPrisma._prisma };
+}
+
+export function getPrisma() {
+  const resolved = resolvePrisma();
+  if (!resolved.ok) {
+    throw new MissingEnvError(resolved.missing);
+  }
+
+  return resolved.prisma;
 }

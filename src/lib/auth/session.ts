@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { cookies } from "next/headers";
-import { prisma } from "../prisma";
+import { getPrisma } from "../db";
 
 const SESSION_COOKIE = "session_token";
 const SESSION_TTL_DAYS = 7;
@@ -8,6 +8,8 @@ const SESSION_TTL_DAYS = 7;
 export async function createSession(userId: string) {
   const expires = new Date();
   expires.setDate(expires.getDate() + SESSION_TTL_DAYS);
+
+  const prisma = getPrisma();
 
   const session = await prisma.session.create({
     data: {
@@ -31,6 +33,8 @@ export async function createSession(userId: string) {
 export async function deleteSession() {
   const token = cookies().get(SESSION_COOKIE)?.value;
   if (!token) return;
+
+  const prisma = getPrisma();
   await prisma.session.deleteMany({ where: { sessionToken: token } });
   cookies().delete(SESSION_COOKIE);
 }
@@ -38,6 +42,8 @@ export async function deleteSession() {
 export async function getCurrentUser() {
   const token = cookies().get(SESSION_COOKIE)?.value;
   if (!token) return null;
+
+  const prisma = getPrisma();
   const session = await prisma.session.findUnique({
     where: { sessionToken: token },
     include: { user: true },
