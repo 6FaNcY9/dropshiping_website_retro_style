@@ -6,10 +6,10 @@ import { GET as productDetail } from "../app/api/products/[id]/route";
 import { vi } from "vitest";
 import { clearEnvCache } from "@/lib/env";
 
-const originalEnv = { ...process.env };
+const originalEnv = { ...process.env, NODE_ENV: process.env.NODE_ENV ?? "test" };
 
 function resetEnv(overrides: Record<string, string | undefined> = {}) {
-  process.env = { ...originalEnv, ...overrides };
+  process.env = { ...originalEnv, NODE_ENV: "test", ...overrides };
   clearEnvCache();
 }
 
@@ -84,7 +84,7 @@ describe("runtime env guarded routes", () => {
   it("returns 503 when database env is missing for product listing", async () => {
     resetEnv({ DATABASE_URL: undefined, DIRECT_URL: undefined });
 
-    const response = await productsIndex(new Request("http://localhost/api/products"));
+    const response = await productsIndex();
 
     expect(response.status).toBe(503);
     const body = await response.json();

@@ -2,10 +2,13 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vites
 import { clearEnvCache } from "@/lib/env";
 import { resetTurnstileWarningState, verifyTurnstile } from "@/lib/security/turnstile";
 
-const originalEnv = { ...process.env } as Record<string, string | undefined>;
+const originalEnv = {
+  ...process.env,
+  NODE_ENV: process.env.NODE_ENV ?? "test",
+} as Record<string, string | undefined>;
 
 function resetEnv(overrides: Record<string, string | undefined> = {}) {
-  process.env = { ...originalEnv, ...overrides };
+  process.env = { ...originalEnv, NODE_ENV: "test", ...overrides };
   clearEnvCache();
   resetTurnstileWarningState();
 }
