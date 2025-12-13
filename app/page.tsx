@@ -1,4 +1,15 @@
+import type { Prisma } from "@prisma/client";
 import Link from "next/link";
+import { demoProducts, listProducts } from "@/lib/products";
+
+type CatalogCard = {
+  id?: string;
+  name: string;
+  description: string;
+  price: string;
+  shipping: string;
+  tag: string;
+};
 
 const heroPerks = [
   {
@@ -33,33 +44,6 @@ const highlights = [
   },
 ];
 
-const bestSellers = [
-  {
-    name: "Polaroid Sun 600 Revival",
-    description:
-      "Rebuilt instant camera with new color filters and eco film packs.",
-    price: "$129",
-    shipping: "Free priority shipping",
-    tag: "Customer favorite",
-  },
-  {
-    name: "Cassette Bluetooth Speaker",
-    description:
-      "Retro tape design hiding a modern 360° Bluetooth 5.2 speaker.",
-    price: "$89",
-    shipping: "Ships in 48h",
-    tag: "Trending now",
-  },
-  {
-    name: "Neon Desk Clock",
-    description:
-      "Warm glow clock with silent sweep movement and dimmable light.",
-    price: "$59",
-    shipping: "Carbon-neutral",
-    tag: "Gift-ready",
-  },
-];
-
 const howItWorks = [
   {
     step: "Browse curated drops",
@@ -78,7 +62,28 @@ const howItWorks = [
   },
 ];
 
-export default function Home() {
+function formatPrice(value: number | string | Prisma.Decimal) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(Number(value));
+}
+
+export default async function Home() {
+  const { products, missingEnv, source } = await listProducts();
+  const isDemoCatalog = source !== "db" || !products.length;
+
+  const catalogCards = (
+    products.length ? products.slice(0, 3) : demoProducts
+  ).map<CatalogCard>((product) => ({
+    id: product.id,
+    name: product.name,
+    description: product.description,
+    price: formatPrice(product.price),
+    shipping: "Ships fast from trusted suppliers",
+    tag: isDemoCatalog ? "Demo catalog" : "Live catalog",
+  }));
+
   return (
     <div className="space-y-24">
       <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-10 shadow-sm">
@@ -162,6 +167,13 @@ export default function Home() {
         </div>
       </section>
 
+      {missingEnv.length ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          Database connection not detected. Demo catalog items are shown until
+          `DATABASE_URL` is configured and seeded.
+        </div>
+      ) : null}
+
       <section id="features" className="space-y-10">
         <div className="space-y-3">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-700">
@@ -222,45 +234,52 @@ export default function Home() {
             </span>
           </div>
         </div>
-        <div className="mt-8 grid gap-6 md:grid-cols-3">
-          {bestSellers.map((item) => (
-            <div
-              key={item.name}
-              className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50/50 p-6"
-            >
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-brand-800">
-                  {item.tag}
-                </p>
-                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">
-                  In stock
-                </span>
-              </div>
-              <div className="space-y-2">
-                <p className="text-lg font-semibold text-slate-900">
-                  {item.name}
-                </p>
-                <p className="text-sm text-slate-600">{item.description}</p>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <p className="text-2xl font-bold text-slate-900">
-                    {item.price}
+        {isDemoCatalog && missingEnv.length > 0 ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+            Configure your database connection (DATABASE_URL) to show live
+            products.
+          </div>
+        ) : (
+          <div className="mt-8 grid gap-6 md:grid-cols-3">
+            {catalogCards.map((item) => (
+              <div
+                key={item.name}
+                className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50/50 p-6"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-brand-800">
+                    {item.tag}
                   </p>
-                  <p className="text-xs font-semibold text-emerald-700">
-                    {item.shipping}
-                  </p>
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                    In stock
+                  </span>
                 </div>
-                <Link
-                  href="/checkout"
-                  className="rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-brand-600/30 transition hover:scale-105 hover:bg-brand-700"
-                >
-                  Add to cart
-                </Link>
+                <div className="space-y-2">
+                  <p className="text-lg font-semibold text-slate-900">
+                    {item.name}
+                  </p>
+                  <p className="text-sm text-slate-600">{item.description}</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-2xl font-bold text-slate-900">
+                      {item.price}
+                    </p>
+                    <p className="text-xs font-semibold text-emerald-700">
+                      {item.shipping}
+                    </p>
+                  </div>
+                  <Link
+                    href={item.id ? `/products/${item.id}` : "/products"}
+                    className="rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-brand-600/30 transition hover:scale-105 hover:bg-brand-700"
+                  >
+                    View product
+                  </Link>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="grid gap-10 rounded-3xl border border-brand-200 bg-brand-50/60 p-10 shadow-sm md:grid-cols-2">

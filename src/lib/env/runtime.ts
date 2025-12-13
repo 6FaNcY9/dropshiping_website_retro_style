@@ -117,18 +117,25 @@ export function getEnv(): Env {
   return cachedEnv;
 }
 
-export function requireEnv(keys: Array<keyof Env | string>) {
+type EnvKey = Extract<keyof Env, string>;
+
+export function requireEnv(keys: Array<EnvKey | string>) {
   const env = getEnv();
-  const missing = keys.filter((key) => {
-    const value = env[key as keyof Env];
-    return value === undefined || value === "";
-  });
+  const missing = keys
+    .map((key) => String(key))
+    .filter((key) => {
+      const value = env[key as EnvKey];
+      return value === undefined || value === "";
+    });
 
-  if (missing.length) {
-    throw new Error(
-      `Missing required environment variables: ${missing.join(", ")}. Update your deployment settings and redeploy.`,
-    );
-  }
+  return {
+    ok: missing.length === 0,
+    missing,
+    env,
+  } as const;
+}
 
-  return env;
+export function clearEnvCache() {
+  cachedEnv = null;
+  validationWarningLogged = false;
 }
