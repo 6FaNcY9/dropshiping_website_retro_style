@@ -44,12 +44,16 @@ async function seedAdminUser() {
 
   if (existing) {
     if (existing.role !== Role.ADMIN) {
-      await prisma.user.update({ where: { id: existing.id }, data: { role: Role.ADMIN } });
+      await prisma.user.update({
+        where: { id: existing.id },
+        data: { role: Role.ADMIN },
+      });
     }
     return;
   }
 
-  const password = process.env.SEED_ADMIN_PASSWORD ?? crypto.randomBytes(12).toString("hex");
+  const password =
+    process.env.SEED_ADMIN_PASSWORD ?? crypto.randomBytes(12).toString("hex");
   const passwordHash = await bcrypt.hash(password, 10);
 
   await prisma.user.create({
@@ -62,7 +66,9 @@ async function seedAdminUser() {
   });
 
   if (!process.env.SEED_ADMIN_PASSWORD) {
-    console.log(`Seeded admin user ${email} with generated password: ${password}`);
+    console.log(
+      `Seeded admin user ${email} with generated password: ${password}`,
+    );
   } else {
     console.log(`Seeded admin user ${email}`);
   }

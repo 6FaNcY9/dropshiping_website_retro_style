@@ -84,7 +84,10 @@ export function UploaderClient() {
         </span>
       </label>
       <div className="space-y-2">
-        <label className="text-sm font-semibold text-slate-700" htmlFor="adminToken">
+        <label
+          className="text-sm font-semibold text-slate-700"
+          htmlFor="adminToken"
+        >
           Admin access token
         </label>
         <input
@@ -99,7 +102,8 @@ export function UploaderClient() {
           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-inner focus:border-brand-500 focus:outline-none"
         />
         <p className="text-xs text-slate-500">
-          Header <code>x-admin-token</code> must match <code>ADMIN_ACCESS_TOKEN</code>.
+          Header <code>x-admin-token</code> must match{" "}
+          <code>ADMIN_ACCESS_TOKEN</code>.
         </p>
       </div>
       {status && <p className="text-sm text-slate-600">{status}</p>}

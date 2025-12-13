@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { getProductById } from "@/lib/products";
 
@@ -55,10 +56,13 @@ export default async function ProductDetailPage({ params }: Params) {
           </div>
         ) : null}
         {product.imageUrl ? (
-          <img
+          <Image
             src={product.imageUrl}
             alt={product.name}
-            className="w-full rounded-xl border border-slate-200 object-cover"
+            width={1200}
+            height={800}
+            sizes="(min-width: 768px) 50vw, 100vw"
+            className="h-auto w-full rounded-xl border border-slate-200 object-cover"
           />
         ) : (
           <div className="h-48 w-full rounded-xl border border-dashed border-slate-200 bg-white/50" />
