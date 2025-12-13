@@ -30,6 +30,7 @@ Copy `.env.example` to `.env.local` and fill in values. Missing values will disa
 Runtime env handling is lazy in `src/lib/env/runtime.ts`: builds succeed without secrets, and endpoints respond with `503` and a list of required variables until configured.
 
 ### Deploy without secrets (feature flags off)
+
 - The app will build and deploy even if Stripe/R2/Turnstile/DB credentials are missing.
 - Impact:
   - Checkout + webhooks return `503` until Stripe keys are set.
@@ -38,6 +39,7 @@ Runtime env handling is lazy in `src/lib/env/runtime.ts`: builds succeed without
   - Database-backed routes return `503` until `DATABASE_URL` is set.
 
 ### Vercel environment variables
+
 - Set variables in **Project Settings → Environment Variables** (Production/Preview/Development).
 - `NEXT_PUBLIC_APP_URL` can be omitted; `VERCEL_URL` will be used automatically.
 - Redeploy after any env var change so Next.js picks up the new values.
@@ -50,6 +52,12 @@ npm run prisma:migrate
 npm run prisma:seed
 npm run dev
 ```
+
+## Database setup
+
+1. Set `DATABASE_URL` (and optionally `DIRECT_URL` for migrations) to your Postgres instance.
+2. Apply the Prisma schema with `npm run prisma:migrate`. This creates the `User`, `Session`, `Product`, `Order`, `OrderItem`, `Payment`, and `ProcessedEvent` tables.
+3. Seed starter catalog data and an admin account with `npm run prisma:seed`. Product pages will fall back to demo items until the Product table has data.
 
 ## Available scripts
 

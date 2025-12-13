@@ -86,7 +86,7 @@ export async function POST(request: Request) {
   }
 
   const currency = "usd";
-  const total = new Prisma.Decimal(
+  const totalAmount = new Prisma.Decimal(
     items.reduce((sum, item) => {
       const product = products.find((p) => p.id === item.productId)!;
       return sum + Number(product.price) * item.quantity;
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
     data: {
       status: "PENDING",
       currency,
-      total,
+      totalAmount,
       items: {
         create: items.map((item) => {
           const product = products.find((p) => p.id === item.productId)!;
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
             productName: product.name,
             imageUrl: product.imageUrl,
             unitPrice: product.price,
-            quantity: item.quantity,
+            qty: item.quantity,
           };
         }),
       },
@@ -127,8 +127,8 @@ export async function POST(request: Request) {
         },
         unit_amount: unitAmount,
       },
-      } satisfies Stripe.Checkout.SessionCreateParams.LineItem;
-    });
+    } satisfies Stripe.Checkout.SessionCreateParams.LineItem;
+  });
 
   const stripe = getStripe(env);
   try {

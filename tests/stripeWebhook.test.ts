@@ -19,7 +19,7 @@ type OrderRecord = {
   id: string;
   status: string;
   currency: string;
-  total: Prisma.Decimal;
+  totalAmount: Prisma.Decimal;
   stripeSessionId: string | null;
 };
 
@@ -121,7 +121,7 @@ function resetData() {
       id: "order_1",
       status: "PENDING",
       currency: "usd",
-      total: new Prisma.Decimal(10),
+      totalAmount: new Prisma.Decimal(10),
       stripeSessionId: null,
     },
   };

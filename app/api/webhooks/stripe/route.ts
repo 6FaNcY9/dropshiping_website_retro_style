@@ -68,7 +68,9 @@ export async function POST(request: Request) {
 
       const order = orderIdFromMetadata
         ? await prisma.order.findUnique({ where: { id: orderIdFromMetadata } })
-        : await prisma.order.findUnique({ where: { stripeSessionId: session.id } });
+        : await prisma.order.findUnique({
+            where: { stripeSessionId: session.id },
+          });
 
       if (!order) {
         return new NextResponse("Order not found for checkout session", {
@@ -79,7 +81,7 @@ export async function POST(request: Request) {
       const amountTotal =
         typeof session.amount_total === "number"
           ? session.amount_total
-          : Number(order.total) * 100;
+          : Number(order.totalAmount) * 100;
       const amount = new Prisma.Decimal(amountTotal / 100);
       const currency = session.currency ?? order.currency;
 
@@ -89,7 +91,7 @@ export async function POST(request: Request) {
           data: {
             status: "PAID",
             currency,
-            total: amount,
+            totalAmount: amount,
             stripeSessionId: order.stripeSessionId ?? session.id,
           },
         });
@@ -149,7 +151,7 @@ export async function POST(request: Request) {
           ? intent.amount_received
           : typeof intent.amount === "number"
             ? intent.amount
-            : Number(order.total) * 100;
+            : Number(order.totalAmount) * 100;
       const amount = new Prisma.Decimal(amountCents / 100);
       const currency = intent.currency ?? order.currency;
 
@@ -159,7 +161,7 @@ export async function POST(request: Request) {
           data: {
             status: "PAID",
             currency,
-            total: amount,
+            totalAmount: amount,
             stripeSessionId: order!.stripeSessionId ?? checkoutSessionId,
           },
         });

@@ -1,9 +1,10 @@
+import type { Prisma } from "@prisma/client";
 import { notFound } from "next/navigation";
 import { getProductById } from "@/lib/products";
 
 export const revalidate = 0;
 
-function formatPrice(value: number | string) {
+function formatPrice(value: number | string | Prisma.Decimal) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -15,16 +16,17 @@ interface Params {
 }
 
 export default async function ProductDetailPage({ params }: Params) {
-  const { product, missingEnv } = await getProductById(params.id);
+  const { product, missingEnv, source } = await getProductById(params.id);
+
+  if (missingEnv.length) {
+    return (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
+        Add DATABASE_URL to load product details.
+      </div>
+    );
+  }
 
   if (!product) {
-    if (missingEnv.length) {
-      return (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
-          Add DATABASE_URL to load product details.
-        </div>
-      );
-    }
     return notFound();
   }
 
@@ -35,7 +37,9 @@ export default async function ProductDetailPage({ params }: Params) {
           Product detail
         </span>
         <h1 className="text-3xl font-bold text-slate-900">{product.name}</h1>
-        <p className="text-slate-700 whitespace-pre-line">{product.description}</p>
+        <p className="text-slate-700 whitespace-pre-line">
+          {product.description}
+        </p>
       </div>
       <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-6">
         <div className="flex items-center justify-between">
@@ -44,6 +48,12 @@ export default async function ProductDetailPage({ params }: Params) {
             {formatPrice(Number(product.price))}
           </p>
         </div>
+        {source === "demo" ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Showing demo product data. Seed your database to replace this
+            product.
+          </div>
+        ) : null}
         {product.imageUrl ? (
           <img
             src={product.imageUrl}
@@ -54,7 +64,8 @@ export default async function ProductDetailPage({ params }: Params) {
           <div className="h-48 w-full rounded-xl border border-dashed border-slate-200 bg-white/50" />
         )}
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-          Orders and payments are persisted via Prisma during checkout and Stripe webhook processing.
+          Orders and payments are persisted via Prisma during checkout and
+          Stripe webhook processing.
         </div>
       </div>
     </div>

@@ -1,18 +1,15 @@
 import { NextResponse } from "next/server";
-import { resolvePrisma } from "@/lib/db";
+import { listProducts } from "@/lib/products";
 
 export async function GET() {
-  const prismaResult = resolvePrisma();
-  if (!prismaResult.ok) {
+  const { products, missingEnv, source } = await listProducts();
+
+  if (missingEnv.length) {
     return NextResponse.json(
-      { error: "Database not configured", required: prismaResult.missing },
+      { error: "Database not configured", required: missingEnv },
       { status: 503 },
     );
   }
 
-  const products = await prismaResult.prisma.product.findMany({
-    orderBy: { createdAt: "desc" },
-  });
-
-  return NextResponse.json({ products });
+  return NextResponse.json({ products, source });
 }

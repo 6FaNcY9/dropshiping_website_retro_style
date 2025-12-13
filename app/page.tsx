@@ -1,5 +1,6 @@
+import type { Prisma } from "@prisma/client";
 import Link from "next/link";
-import { listProducts } from "@/lib/products";
+import { demoProducts, listProducts } from "@/lib/products";
 
 type CatalogCard = {
   id?: string;
@@ -43,33 +44,6 @@ const highlights = [
   },
 ];
 
-const bestSellers: CatalogCard[] = [
-  {
-    name: "Polaroid Sun 600 Revival",
-    description:
-      "Rebuilt instant camera with new color filters and eco film packs.",
-    price: "$129",
-    shipping: "Free priority shipping",
-    tag: "Customer favorite",
-  },
-  {
-    name: "Cassette Bluetooth Speaker",
-    description:
-      "Retro tape design hiding a modern 360° Bluetooth 5.2 speaker.",
-    price: "$89",
-    shipping: "Ships in 48h",
-    tag: "Trending now",
-  },
-  {
-    name: "Neon Desk Clock",
-    description:
-      "Warm glow clock with silent sweep movement and dimmable light.",
-    price: "$59",
-    shipping: "Carbon-neutral",
-    tag: "Gift-ready",
-  },
-];
-
 const howItWorks = [
   {
     step: "Browse curated drops",
@@ -88,7 +62,7 @@ const howItWorks = [
   },
 ];
 
-function formatPrice(value: number | string) {
+function formatPrice(value: number | string | Prisma.Decimal) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -96,17 +70,19 @@ function formatPrice(value: number | string) {
 }
 
 export default async function Home() {
-  const { products, missingEnv } = await listProducts();
-  const featured = products.slice(0, 3).map<CatalogCard>((product) => ({
+  const { products, missingEnv, source } = await listProducts();
+  const isDemoCatalog = source !== "db" || !products.length;
+
+  const catalogCards = (
+    products.length ? products.slice(0, 3) : demoProducts
+  ).map<CatalogCard>((product) => ({
     id: product.id,
     name: product.name,
     description: product.description,
-    price: formatPrice(Number(product.price)),
+    price: formatPrice(product.price),
     shipping: "Ships fast from trusted suppliers",
-    tag: "Live catalog",
+    tag: isDemoCatalog ? "Demo catalog" : "Live catalog",
   }));
-
-  const catalogCards = featured.length ? featured : bestSellers;
 
   return (
     <div className="space-y-24">
@@ -191,6 +167,13 @@ export default async function Home() {
         </div>
       </section>
 
+      {missingEnv.length ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          Database connection not detected. Demo catalog items are shown until
+          `DATABASE_URL` is configured and seeded.
+        </div>
+      ) : null}
+
       <section id="features" className="space-y-10">
         <div className="space-y-3">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-700">
@@ -251,9 +234,10 @@ export default async function Home() {
             </span>
           </div>
         </div>
-        {featured.length === 0 && missingEnv.length > 0 ? (
+        {isDemoCatalog && missingEnv.length > 0 ? (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
-            Configure your database connection (DATABASE_URL) to show live products.
+            Configure your database connection (DATABASE_URL) to show live
+            products.
           </div>
         ) : (
           <div className="mt-8 grid gap-6 md:grid-cols-3">

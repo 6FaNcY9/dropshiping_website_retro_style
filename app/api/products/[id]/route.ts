@@ -1,26 +1,23 @@
 import { NextResponse } from "next/server";
-import { resolvePrisma } from "@/lib/db";
+import { getProductById } from "@/lib/products";
 
 interface Params {
   params: { id: string };
 }
 
 export async function GET(_request: Request, { params }: Params) {
-  const prismaResult = resolvePrisma();
-  if (!prismaResult.ok) {
+  const { product, missingEnv, source } = await getProductById(params.id);
+
+  if (missingEnv.length) {
     return NextResponse.json(
-      { error: "Database not configured", required: prismaResult.missing },
+      { error: "Database not configured", required: missingEnv },
       { status: 503 },
     );
   }
-
-  const product = await prismaResult.prisma.product.findUnique({
-    where: { id: params.id },
-  });
 
   if (!product) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ product });
+  return NextResponse.json({ product, source });
 }

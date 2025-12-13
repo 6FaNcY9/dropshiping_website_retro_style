@@ -51,6 +51,7 @@ model Product {
   name        String
   description String
   price       Decimal  @db.Decimal(10, 2)
+  imageKey    String?
   imageUrl    String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -62,7 +63,7 @@ model Order {
   userId          String?
   user            User?       @relation(fields: [userId], references: [id])
   status          OrderStatus @default(PENDING)
-  total           Decimal     @db.Decimal(10, 2)
+  totalAmount     Decimal     @map("total") @db.Decimal(10, 2)
   currency        String
   stripeSessionId String?     @unique
   items           OrderItem[]
@@ -80,7 +81,7 @@ model OrderItem {
   productName String
   imageUrl    String?
   unitPrice   Decimal  @db.Decimal(10, 2)
-  quantity    Int
+  qty         Int      @map("quantity")
 }
 
 model Payment {
