@@ -93,9 +93,12 @@ describe("runtime env guarded routes", () => {
   it("returns 503 when database env is missing for product detail", async () => {
     resetEnv({ DATABASE_URL: undefined, DIRECT_URL: undefined });
 
-    const response = await productDetail(new Request("http://localhost/api/products/abc"), {
-      params: { id: "abc" },
-    });
+    const response = await productDetail(
+      new Request("http://localhost/api/products/abc"),
+      {
+        params: { id: "abc" },
+      },
+    );
 
     expect(response.status).toBe(503);
     const body = await response.json();
@@ -105,20 +108,33 @@ describe("runtime env guarded routes", () => {
   it("returns 503 when R2 env is missing for uploads", async () => {
     resetEnv({ R2_ENDPOINT: undefined });
 
-    const { POST: presignUpload } = await import("../app/api/uploads/presign/route");
+    const { POST: presignUpload } =
+      await import("../app/api/uploads/presign/route");
 
     const response = await presignUpload(
       new Request("http://localhost/api/uploads/presign", {
         method: "POST",
-        headers: { "content-type": "application/json", "x-admin-token": "token" },
-        body: JSON.stringify({ filename: "test.jpg", contentType: "image/jpeg" }),
+        headers: {
+          "content-type": "application/json",
+          "x-admin-token": "token",
+        },
+        body: JSON.stringify({
+          filename: "test.jpg",
+          contentType: "image/jpeg",
+        }),
       }),
     );
 
     expect(response.status).toBe(503);
     const body = await response.json();
     expect(body.required).toEqual(
-      expect.arrayContaining(["R2_ENDPOINT", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_PUBLIC_BASE_URL"]),
+      expect.arrayContaining([
+        "R2_ENDPOINT",
+        "R2_BUCKET",
+        "R2_ACCESS_KEY_ID",
+        "R2_SECRET_ACCESS_KEY",
+        "R2_PUBLIC_BASE_URL",
+      ]),
     );
   });
 
@@ -139,13 +155,17 @@ describe("runtime env guarded routes", () => {
       ADMIN_ACCESS_TOKEN: "supersecret",
     });
 
-    const { POST: presignUpload } = await import("../app/api/uploads/presign/route");
+    const { POST: presignUpload } =
+      await import("../app/api/uploads/presign/route");
 
     const response = await presignUpload(
       new Request("http://localhost/api/uploads/presign", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ filename: "test.jpg", contentType: "image/jpeg" }),
+        body: JSON.stringify({
+          filename: "test.jpg",
+          contentType: "image/jpeg",
+        }),
       }),
     );
 

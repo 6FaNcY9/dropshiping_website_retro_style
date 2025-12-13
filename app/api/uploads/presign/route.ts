@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createPresignedDownload, createPresignedUpload } from "@/lib/storage/r2";
+import {
+  createPresignedDownload,
+  createPresignedUpload,
+} from "@/lib/storage/r2";
 import { getCurrentUser } from "@/lib/auth/session";
 import { requireEnv } from "@/lib/env";
 
@@ -64,14 +67,20 @@ export async function POST(request: Request) {
   }
 
   if (!tokenHeader || tokenHeader !== env.ADMIN_ACCESS_TOKEN) {
-    return NextResponse.json({ error: "Admin token required" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Admin token required" },
+      { status: 401 },
+    );
   }
 
   const { operation = "put", key } = parsed.data;
 
   if (operation === "get") {
     if (!key) {
-      return NextResponse.json({ error: "Key is required for GET presign" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Key is required for GET presign" },
+        { status: 400 },
+      );
     }
 
     const download = await createPresignedDownload(env, key);

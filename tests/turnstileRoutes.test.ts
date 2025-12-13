@@ -1,4 +1,12 @@
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { POST as login } from "../app/api/auth/login/route";
 import { POST as checkoutCreate } from "../app/api/checkout/create/route";
 import { clearEnvCache } from "@/lib/env";
