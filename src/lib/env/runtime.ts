@@ -119,10 +119,12 @@ export function getEnv(): Env {
 
 type EnvKey = Extract<keyof Env, string>;
 
-export function requireEnv(keys: Array<EnvKey | string>) {
+type RequireEnvResult = { ok: boolean; missing: string[]; env: Env };
+
+export function requireEnv(keys: Array<EnvKey | string>): RequireEnvResult {
   const env = getEnv();
-  const missing = keys
-    .map((key) => String(key))
+  const missing: string[] = keys
+    .map((key) => key.toString())
     .filter((key) => {
       const value = env[key as EnvKey];
       return value === undefined || value === "";
@@ -132,7 +134,7 @@ export function requireEnv(keys: Array<EnvKey | string>) {
     ok: missing.length === 0,
     missing,
     env,
-  } as const;
+  } satisfies RequireEnvResult;
 }
 
 export function clearEnvCache() {

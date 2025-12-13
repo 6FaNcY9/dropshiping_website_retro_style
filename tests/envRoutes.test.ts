@@ -5,11 +5,10 @@ import { GET as productsIndex } from "../app/api/products/route";
 import { GET as productDetail } from "../app/api/products/[id]/route";
 import { vi } from "vitest";
 import { clearEnvCache } from "@/lib/env";
-
-const originalEnv = { ...process.env, NODE_ENV: process.env.NODE_ENV ?? "test" };
+import { mergeTestEnv } from "./setup-env";
 
 function resetEnv(overrides: Record<string, string | undefined> = {}) {
-  process.env = { ...originalEnv, NODE_ENV: "test", ...overrides };
+  mergeTestEnv(overrides);
   clearEnvCache();
 }
 

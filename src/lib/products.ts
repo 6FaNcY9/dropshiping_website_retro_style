@@ -51,19 +51,28 @@ export async function listProducts() {
     };
   }
 
-  const products = await prismaResult.prisma.product.findMany({
-    orderBy: { createdAt: "desc" },
-  });
+  try {
+    const products = await prismaResult.prisma.product.findMany({
+      orderBy: { createdAt: "desc" },
+    });
 
-  if (!products.length) {
+    if (!products.length) {
+      return {
+        products: demoProducts,
+        missingEnv: [] as string[],
+        source: "demo" as const,
+      };
+    }
+
+    return { products, missingEnv: [] as string[], source: "db" as const };
+  } catch (error) {
+    console.warn("Falling back to demo products due to database error", error);
     return {
       products: demoProducts,
-      missingEnv: [] as string[],
+      missingEnv: [],
       source: "demo" as const,
     };
   }
-
-  return { products, missingEnv: [] as string[], source: "db" as const };
 }
 
 export async function getProductById(id: string) {
@@ -76,22 +85,32 @@ export async function getProductById(id: string) {
     };
   }
 
-  const product = await prismaResult.prisma.product.findUnique({
-    where: { id },
-  });
-  if (product) {
-    return { product, missingEnv: [] as string[], source: "db" as const };
-  }
+  try {
+    const product = await prismaResult.prisma.product.findUnique({
+      where: { id },
+    });
+    if (product) {
+      return { product, missingEnv: [] as string[], source: "db" as const };
+    }
 
-  const productCount = await prismaResult.prisma.product.count();
-  if (productCount === 0) {
+    const productCount = await prismaResult.prisma.product.count();
+    if (productCount === 0) {
+      const fallback = demoProducts.find((item) => item.id === id) ?? null;
+      return {
+        product: fallback,
+        missingEnv: [] as string[],
+        source: "demo" as const,
+      };
+    }
+
+    return { product: null, missingEnv: [] as string[], source: "db" as const };
+  } catch (error) {
+    console.warn("Returning demo product due to database error", error);
     const fallback = demoProducts.find((item) => item.id === id) ?? null;
     return {
       product: fallback,
-      missingEnv: [] as string[],
+      missingEnv: [],
       source: "demo" as const,
     };
   }
-
-  return { product: null, missingEnv: [] as string[], source: "db" as const };
 }
