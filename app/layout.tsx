@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { Navbar } from "./components/Navbar";
 import { Footer } from "./components/Footer";
-
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+import { CartProvider } from "./components/CartContext";
 
 export const metadata: Metadata = {
-  title: "Dropship Retro Storefront",
+  title: "RETRO DROPS | Vintage Tech & Nostalgia Store",
   description:
-    "Retro-inspired dropshipping starter built with Next.js App Router and Prisma.",
+    "Step back in time with our curated collection of retro gadgets, vintage tech, and nostalgic finds. Fast shipping, secure checkout.",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({
@@ -19,11 +20,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable}>
-      <body className="min-h-screen bg-slate-50 text-slate-900">
-        <Navbar />
-        <main className="container pb-16 pt-10">{children}</main>
-        <Footer />
+    <html lang="en">
+      <body className="min-h-screen bg-dark-900 text-cream">
+        <CartProvider>
+          <Navbar />
+          <main className="container pb-16 pt-8">{children}</main>
+          <Footer />
+        </CartProvider>
         <Analytics />
       </body>
     </html>
