@@ -1,8 +1,17 @@
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { Prisma, PrismaClient, Role } from "@prisma/client";
+import { PrismaNeon } from "@prisma/adapter-neon";
+import { neon } from "@neondatabase/serverless";
 
-const prisma = new PrismaClient();
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error("DATABASE_URL environment variable is not set");
+}
+
+const sql = neon(connectionString);
+const adapter = new PrismaNeon(sql);
+const prisma = new PrismaClient({ adapter });
 
 async function seedProducts() {
   const productCount = await prisma.product.count();
