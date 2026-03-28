@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaNeon } from "@prisma/adapter-neon";
-import { neon } from "@neondatabase/serverless";
+import { Pool } from "@neondatabase/serverless";
 import { requireEnv } from "./env";
 
 export class MissingEnvError extends Error {
@@ -28,8 +28,10 @@ export function resolvePrisma(): PrismaResolution {
   }
 
   if (!globalWithPrisma._prisma) {
-    const sql = neon(envCheck.env.DATABASE_URL);
-    const adapter = new PrismaNeon(sql);
+    // requireEnv validated DATABASE_URL, so it is safe to assert non-null here.
+    const connectionString = envCheck.env.DATABASE_URL!;
+    const pool = new Pool({ connectionString });
+    const adapter = new PrismaNeon(pool);
 
     globalWithPrisma._prisma = new PrismaClient({
       adapter,
